@@ -6,7 +6,14 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 
 public class Example() {
-	protected TrackData RipTrack(int trackNum)
+
+	protected struct Track {
+    		public string Name { get; set; }
+    		public byte[] Data { get; set; }
+    		public int DataSize { get; set; }
+	}
+
+	protected Track RipTrack(int trackNum)
         {
             try
             {
@@ -54,7 +61,7 @@ public class Example() {
                     Array.Resize(ref buffer, offset);
                 }
 
-                return new TrackData { Track = track, Data = buffer, DataSize = offset };
+                return new Track { Name = track, Data = buffer, DataSize = offset };
 
             }
             catch (Exception e)
