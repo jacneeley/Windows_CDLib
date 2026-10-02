@@ -5,6 +5,8 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Diagnostics;
 
+/* written w/love in vim */
+
 public class CDLibExamples() {
 
 	protected struct Track {
@@ -20,6 +22,8 @@ public class CDLibExamples() {
     ///  The CDDatatReadEventHandler is a callback event used to store Data from CD and update the buffer as Sectors are read.
     ///  CDReadProgressHandler is another callback event for interacting with Bytes2Read & BytesRead. You can use this to update a progress bar.
     ///  Data is returned as struct Track. How you return/handle the data is up to you. I chose to create a struct over a class.
+    ///  Ripping this way is defensive & very safe, but memory will scale with tracks read (1x usage per track read).
+    ///  Refer to the 'RipTrack' method below for an async implementation that uses contants memory.
     /// </summary>
     /// <param name="trackNum"></param>
     /// <returns>Track</returns>
@@ -87,11 +91,13 @@ public class CDLibExamples() {
     /// In theory memory use would be constant as opposed to increasing in usage with every track.
     /// While memory is constant, if something goes wrong the process of writing a file can get interrupted.
     /// The method above is more defensive.
+    /// This is how I would write an async method that writes bytes to file as it reads sectors.
+    /// Feel free to do this anyway you like if you think there is a better way. I am not a C# dev.
     /// </summary>
     /// <param name="dest"></param>
     /// <param name="trackNum"></param>
     /// <param name="format"></param>
-    protected async void RipTrack(string dest, int trackNum)
+    protected async Task<bool> RipTrack(string dest, int trackNum)
     {
         try
         {
@@ -102,27 +108,31 @@ public class CDLibExamples() {
 
             long bytesWritten = 0;
 
-            int result = ReadTrack(
-                trackNum,
-                (sender, e) =>
-                {// this is the CDDataReadEventHandler
-                    await fs.WriteAsync(e.Data, 0 , (int)e.DataSize);
-                    bytesWritten += e.DataSize;
-                },
-                (sender, e) =>
-                { //This is the CDReadProgressHandler
-                  // do with this what you like 
-                  // e has Bytes2Read and BytesRead (and CancelRead) on it.
-                  // e.g. report progress, allow cancellation:
-                  // e.CancelRead = userCancelled;
+	    return await Task.Run(async () =>{
+		long bytesWritten = 0;
 
-                });
+		int res = ReadTrack(
+			trackNum,
+			(sender, e) =>
+			{
+				writer.Write(e.Data, 0, (int)e.DataSize); //write as program reads. needs to be in sync.
+				bytesWritten += e.DataSize;
+			},
+			(sender, e) =>
+			{
+				/*optional: update progress */
+			}
+			if(res < 0 ){
+				throw new IOException("..."); //or whatever exception
+			}
 
-            if (result < 0)
-            {
-                throw new IOException("Track: " + trackNum + " could not be read...");
-            }
+			return res > 0;
+		)
+	    }
         }
+	catch (ArgumentException e){
+		throw; //handle however
+	}
         catch (Exception e)
         {
             // Handle however.
